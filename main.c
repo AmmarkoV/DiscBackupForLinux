@@ -25,25 +25,42 @@ char * path_cat2 (const char *str1,const char *str2)
     return result;
 }
 
+int waitRead()
+{
+    char line[1024]={0};
+    scanf("%[^\n]", line);
+    return 1;
+}
+
 int clearPrevious( const char * outputPath)
 {
+ int i=0;
+ char command[2048]={0};
+   snprintf(command,2048," rm output_image*.iso");
+   //int  i=system(command);
+   if (i!=0) { fprintf(stderr,"Could not clean image..\n"); }
 
- char command[2048];
-   snprintf(command,2048," rm output_image.iso");
- int  i=system(command);
-
-   snprintf(command,2048," rm outputPath/*");
+   snprintf(command,2048," rm %s/*",outputPath);
    i=system(command);
-
+   if (i!=0) { fprintf(stderr,"Could not clean first output..\n"); }
+  return 1;
 }
 
 
-int writeDisc()
+int writeDisc(unsigned int part)
 {
- char command[2048];
- snprintf(command,2048,"growisofs -dvd-compat -Z /dev/sr0=output_image.iso");
- int i=system(command);
+ int i=0;
+ char command[2048]={0};
 
+ fprintf(stderr,"Ready to write , enter empty DVD wait a few seconds , then hit enter..\n");
+ waitRead();
+
+ snprintf(command,2048,"wodim -eject -tao  speed=2 dev=/dev/sg1 -v -data output_image_%u.iso",part);
+ i=system(command);
+ if (i!=0) { fprintf(stderr,"Could not write DVD..\n"); }
+
+ snprintf(command,2048,"eject",part);
+ i=system(command);
 return 1;
 
 }
@@ -52,16 +69,43 @@ return 1;
 
 int executeWrite(unsigned int part , const char * outputPath)
 {
-   char command[2048];
-   snprintf(command,2048,"mkisofs -V disc%u -lfJR -o output_image.iso %s",part,outputPath);
+   char command[2048]={0};
+   snprintf(command,2048,"mkisofs -V disc%u -lfJR -o output_image_%u.iso %s",part,part,outputPath);
    int i=system(command);
+   if (i!=0) { fprintf(stderr,"Could not write DVD image..\n"); }
 
 return 1;
 }
 
 
+int linkFileToCurrentOutput(const char * fullPath, const char* outputPath , const char * filename)
+{
+ char command[2048]={0};
+ snprintf(command,2048,"ln -s %s %s/%s",fullPath,outputPath,filename);
+ int i=system(command);
+ if (i!=0)
+ {
+   fprintf(stderr,"Could not link file..\n");
+   return 0;
+ }
+ return 1;
+}
+
+
+int doWriteOut(unsigned int part , const char * outputPath)
+{
+ executeWrite(part,outputPath);
+ writeDisc(part);
+ fprintf(stderr,"Done with write operation\n");
+ waitRead();
+ clearPrevious(outputPath);
+ return 1;
+}
+
+
 int makeLinkedFolders(const char * directoryPath,const char * outputPath,unsigned long splitSize)
 {
+    clearPrevious(outputPath);
     struct stat st;
     struct dirent *dp= {0};
     unsigned long accumaltedSize=0;
@@ -102,24 +146,23 @@ int makeLinkedFolders(const char * directoryPath,const char * outputPath,unsigne
                       if (S_ISDIR(st.st_mode))
                        {
                          //Handle DIR here
-                         fprintf(stderr,"ignoring directory\n" ,dp->d_name);
+                         fprintf(stderr,"ignoring directory\n");
                        }
                          else
                        {
                         if (accumaltedSize+st.st_size>splitSize)
                         {
                          //BLOCK AND DO WRITE HERE..
-                         executeWrite(outputPath);
-                         writeDisc();
-                         clearPrevious(outputPath);
+                         //fprintf(stderr,"Over Size %lu + %lu > %lu",accumaltedSize,st.st_size,splitSize);
+                         //exit(0);
+                         doWriteOut(part ,outputPath);
+                         ++part;
+                         accumaltedSize=0;
                         }
                          accumaltedSize+=st.st_size;
                          fprintf(stderr,"%u bytes - acc %u\n",st.st_size,accumaltedSize);
 
-
-                         char command[2048];
-                         snprintf(command,2048,"ln -s %s %s/%s",fullpath,outputPath,dp->d_name);
-                         int i=system(command);
+                         linkFileToCurrentOutput(fullpath,outputPath,dp->d_name);
                         }
                     }
                     else
@@ -134,8 +177,8 @@ int makeLinkedFolders(const char * directoryPath,const char * outputPath,unsigne
             }
 
         }
-
-
+    fprintf(stderr,"Final write..");
+    doWriteOut(part ,outputPath);
 
     closedir(dir);
     return 1;
@@ -150,7 +193,10 @@ int makeLinkedFolders(const char * directoryPath,const char * outputPath,unsigne
 int main(int argc, char *argv[])
 {
     if ( argc<3 ) { return 0; }
-    makeLinkedFolders(argv[1],argv[2],4*1024*1024*1024);
+
+    unsigned long splitSize= 4831838208; //4.5GB
+
+    makeLinkedFolders(argv[1],argv[2],splitSize);
     fprintf(stderr,"Done..!\n");
     return 0;
 }
