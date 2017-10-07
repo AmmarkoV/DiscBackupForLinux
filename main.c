@@ -34,10 +34,10 @@ int waitRead()
 
 int clearPrevious( const char * outputPath)
 {
- int i=0;
- char command[2048]={0};
-   snprintf(command,2048," rm output_image*.iso");
-   //int  i=system(command);
+   int i=0;
+   char command[2048]={0};
+   snprintf(command,2048," rm output_image_*.iso");
+   i=system(command);
    if (i!=0) { fprintf(stderr,"Could not clean image..\n"); }
 
    snprintf(command,2048," rm %s/*",outputPath);
@@ -55,7 +55,7 @@ int writeDisc(unsigned int part)
  fprintf(stderr,"Ready to write , enter empty DVD wait a few seconds , then hit enter..\n");
  waitRead();
 
- snprintf(command,2048,"wodim -eject -tao  speed=2 dev=/dev/sg1 -v -data output_image_%u.iso",part);
+ snprintf(command,2048,"wodim -eject -tao  speed=4 dev=/dev/sg1 -v -data output_image_%u.iso",part);
  i=system(command);
  if (i!=0) { fprintf(stderr,"Could not write DVD..\n"); }
 
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
 {
     if ( argc<3 ) { return 0; }
 
-    unsigned long splitSize= 4831838208; //4.5GB
+    unsigned long splitSize= 4631838208; //4.7GB DVD
 
     makeLinkedFolders(argv[1],argv[2],splitSize);
     fprintf(stderr,"Done..!\n");
